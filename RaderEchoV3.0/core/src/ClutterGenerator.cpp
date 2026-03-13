@@ -22,7 +22,6 @@ void ZMNLGenerator::setDistributionType(ClutterDistributionType type) {
 }
 
 ComplexVector ZMNLGenerator::generate(size_t length, const ClutterParams& params) {
-    // 生成独立高斯随机序列
     std::random_device rd;
     std::mt19937 gen(rd());
     std::normal_distribution<SignalType> dist(0.0, 1.0);
@@ -60,8 +59,6 @@ ComplexVector ZMNLGenerator::transformRayleigh(const ComplexVector& input, Signa
     for (size_t i = 0; i < input.size(); ++i) {
         SignalType r = std::abs(input[i]);
         SignalType phase = std::arg(input[i]);
-        // Rayleigh 分布：通过逆变换 R = sigma * sqrt(-2 * ln(U))
-        // 这里使用幅度保持，相位保持
         SignalType rayleighAmp = sigma * r;
         output[i] = Complex(rayleighAmp * std::cos(phase), rayleighAmp * std::sin(phase));
     }
@@ -78,7 +75,6 @@ ComplexVector ZMNLGenerator::transformWeibull(const ComplexVector& input,
 
     for (size_t i = 0; i < input.size(); ++i) {
         SignalType phase = std::arg(input[i]);
-        // Weibull 逆 CDF: X = scale * (-ln(1-U))^(1/shape)
         SignalType u = uniform(gen);
         SignalType weibullAmp = scale * std::pow(-std::log(1.0 - u), 1.0 / shape);
         output[i] = Complex(weibullAmp * std::cos(phase), weibullAmp * std::sin(phase));
@@ -96,7 +92,6 @@ ComplexVector ZMNLGenerator::transformLogNormal(const ComplexVector& input,
 
     for (size_t i = 0; i < input.size(); ++i) {
         SignalType phase = std::arg(input[i]);
-        // LogNormal: X = exp(N(mean, stddev^2))
         SignalType logNormalAmp = std::exp(normalDist(gen));
         output[i] = Complex(logNormalAmp * std::cos(phase), logNormalAmp * std::sin(phase));
     }
@@ -110,14 +105,11 @@ ComplexVector ZMNLGenerator::transformKDistribution(const ComplexVector& input,
     std::random_device rd;
     std::mt19937 gen(rd());
 
-    // K 分布 = Rayleigh * sqrt(Gamma), Gamma 为调制分量
-    // 使用 Gamma 分布生成调制分量
     std::gamma_distribution<SignalType> gammaDist(shape, 1.0);
 
     for (size_t i = 0; i < input.size(); ++i) {
         SignalType r = std::abs(input[i]);
         SignalType phase = std::arg(input[i]);
-        // Gamma 调制
         SignalType gamma = gammaDist(gen);
         SignalType kAmp = scale * r * std::sqrt(gamma / shape);
         output[i] = Complex(kAmp * std::cos(phase), kAmp * std::sin(phase));
@@ -126,7 +118,6 @@ ComplexVector ZMNLGenerator::transformKDistribution(const ComplexVector& input,
 }
 
 SignalType ZMNLGenerator::erf(SignalType x) {
-    // 误差函数近似计算（Abramowitz and Stegun 近似）
     SignalType sign = (x >= 0) ? 1.0 : -1.0;
     x = std::abs(x);
 
@@ -157,7 +148,6 @@ void SIRPGenerator::setDistributionType(ClutterDistributionType type) {
 }
 
 void SIRPGenerator::updateSpectrumFilter(const SpectrumParams& params) {
-    // 生成高斯频谱滤波器系数
     m_filterCoeffs.resize(m_filterLength);
 
     SignalType sigma = params.bandwidth / (2.0 * std::sqrt(2.0 * std::log(2.0)));
@@ -165,7 +155,7 @@ void SIRPGenerator::updateSpectrumFilter(const SpectrumParams& params) {
 
     for (size_t i = 0; i < m_filterLength; ++i) {
         SignalType f = static_cast<SignalType>(i) / m_filterLength;
-        f = (f < 0.5) ? f : f - 1.0;  // 归一化频率 [-0.5, 0.5]
+        f = (f < 0.5) ? f : f - 1.0;
         SignalType df = f - center;
         m_filterCoeffs[i] = std::exp(-0.5 * df * df / (sigma * sigma));
     }
@@ -174,13 +164,9 @@ void SIRPGenerator::updateSpectrumFilter(const SpectrumParams& params) {
 ComplexVector SIRPGenerator::generate(size_t length,
                                        const ClutterParams& params,
                                        const SpectrumParams& spectrumParams) {
-    // 1. 生成高斯随机过程
     ComplexVector gaussianProc = generateGaussianProcess(length);
-
-    // 2. 频谱整形滤波
     ComplexVector shapedProc = spectralShaping(gaussianProc, spectrumParams);
 
-    // 3. 生成调制分量并应用
     auto modulation = generateModulation(length, m_type, params);
 
     ComplexVector output(length);
@@ -208,10 +194,7 @@ ComplexVector SIRPGenerator::generateGaussianProcess(size_t length) {
 ComplexVector SIRPGenerator::spectralShaping(const ComplexVector& input,
                                               const SpectrumParams& params) {
     size_t N = input.size();
-    size_t fftSize = 1;
-    while (fftSize < N) fftSize *= 2;
 
-    // 简化的频谱整形（使用理想高斯滤波器）
     SignalType sigma = params.bandwidth;
     SignalType center = params.centerFreq;
 
@@ -234,7 +217,6 @@ std::vector<SignalType> SIRPGenerator::generateModulation(size_t length,
 
     switch (type) {
         case ClutterDistributionType::K_Distribution: {
-            // K 分布使用 Gamma 分布调制
             std::gamma_distribution<SignalType> gammaDist(params.kDistShape, 1.0);
             for (size_t i = 0; i < length; ++i) {
                 modulation[i] = gammaDist(gen);
@@ -242,7 +224,6 @@ std::vector<SignalType> SIRPGenerator::generateModulation(size_t length,
             break;
         }
         case ClutterDistributionType::LogNormal: {
-            // LogNormal 使用对数正态调制
             std::lognormal_distribution<SignalType> lognormDist(params.logNormalMean,
                                                                  params.logNormalStd);
             for (size_t i = 0; i < length; ++i) {
@@ -251,7 +232,6 @@ std::vector<SignalType> SIRPGenerator::generateModulation(size_t length,
             break;
         }
         default: {
-            // Rayleigh 和 Weibull 使用常数调制
             std::fill(modulation.begin(), modulation.end(), 1.0);
         }
     }

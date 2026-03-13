@@ -11,6 +11,8 @@ set(CORE_SOURCES
     src/SignalProcessor.cpp
     src/ParameterManager.cpp
     src/RadarSimulator.cpp
+    src/Logger.cpp
+    src/BeamCodeManager.cpp
 )
 
 set(CORE_HEADERS
@@ -23,6 +25,7 @@ set(CORE_HEADERS
     include/ParameterManager.h
     include/RadarSimulator.h
     include/Logger.h
+    include/BeamCodeManager.h
 )
 
 # 创建静态库

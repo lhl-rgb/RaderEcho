@@ -121,54 +121,24 @@ public:
     explicit ClutterManager();
     ~ClutterManager();
 
-    /**
-     * @brief 初始化杂波系统
-     * @param params 杂波参数
-     * @param spectrumParams 频谱参数
-     * @param poolSize 内存池大小
-     * @param sequenceLength 序列长度
-     */
     void initialize(const ClutterParams& params, const SpectrumParams& spectrumParams,
                    size_t poolSize = 100, size_t sequenceLength = 1024);
 
-    /**
-     * @brief 为网格单元生成杂波序列
-     * @param cell 网格单元
-     * @param numPulses CPI 内脉冲数
-     * @return 杂波序列矩阵 [numPulses x sequenceLength]
-     */
     ComplexMatrix generateCellClutter(const ClutterCell& cell, int numPulses);
-
-    /**
-     * @brief 获取调制后的杂波（考虑天线增益）
-     * @param cell 网格单元
-     * @param pulseIndex 脉冲索引
-     * @return 调制后的杂波序列
-     */
     ComplexVector getModulatedClutter(const ClutterCell& cell, int pulseIndex);
 
-    /**
-     * @brief 保存杂波数据到文件
-     */
     bool saveClutterData(const std::string& filename);
-
-    /**
-     * @brief 从文件加载杂波数据
-     */
     bool loadClutterData(const std::string& filename);
 
-    /**
-     * @brief 获取内存池引用
-     */
-    ClutterMemoryPool& getMemoryPool() { return m_memoryPool; }
+    ClutterMemoryPool& getMemoryPool() { return *m_memoryPool; }
 
 private:
-    ClutterMemoryPool m_memoryPool;
+    std::unique_ptr<ClutterMemoryPool> m_memoryPool;
     ClutterParams m_params;
     SpectrumParams m_spectrumParams;
 
     std::unique_ptr<ZMNLGenerator> m_zmnlGenerator;
     std::unique_ptr<SIRPGenerator> m_sirpGenerator;
 
-    bool m_useSIRP = true;  // 默认使用 SIRP 方法
+    bool m_useSIRP = true;
 };

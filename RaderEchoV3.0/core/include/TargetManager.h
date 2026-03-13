@@ -4,6 +4,7 @@
 #include <vector>
 #include <memory>
 #include <functional>
+#include <unordered_map>
 
 /**
  * @brief 目标运动模型基类

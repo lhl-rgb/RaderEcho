@@ -10,10 +10,6 @@
 #define M_PI 3.14159265358979323846
 #endif
 
-// ============================================================================
-// Phased Array Radar Simulator Implementation
-// ============================================================================
-
 PhasedArrayRadarSimulator::PhasedArrayRadarSimulator() = default;
 
 PhasedArrayRadarSimulator::~PhasedArrayRadarSimulator() {
@@ -24,7 +20,6 @@ bool PhasedArrayRadarSimulator::initialize(const std::string& configPath) {
     ParameterManager paramMgr;
     m_config = paramMgr.loadFromFile(configPath);
 
-    // 获取默认参数
     m_radarParams = paramMgr.getDefaultRadarParams();
     m_antennaParams = paramMgr.getDefaultAntennaParams();
     m_clutterParams = paramMgr.getDefaultClutterParams();
@@ -32,30 +27,23 @@ bool PhasedArrayRadarSimulator::initialize(const std::string& configPath) {
     m_spectrumParams.centerFreq = m_clutterParams.spectrum.centerFreq;
     m_spectrumParams.bandwidth = m_clutterParams.spectrum.bandwidth;
 
-    // 初始化功能模块
     m_targetManager = std::make_unique<TargetManager>();
     m_clutterManager = std::make_unique<ClutterManager>();
     m_gridManager = std::make_unique<GridManager>();
     m_signalProcessor = std::make_unique<SignalProcessor>();
     m_beamCodeManager = std::make_unique<BeamCodeManager>();
 
-    // 初始化信号处理器
     m_signalProcessor->initialize(m_radarParams, m_antennaParams);
-
-    // 初始化网格管理器
     m_gridManager->initialize(m_radarParams, m_antennaParams);
 
-    // 初始化杂波管理器
     m_clutterManager->initialize(m_clutterParams, m_spectrumParams,
                                   m_config.clutterPoolSize,
                                   m_radarParams.numRangeBins);
 
-    // 加载波位码
     if (!m_config.beamCodeFile.empty()) {
         loadBeamCodes(m_config.beamCodeFile);
     }
 
-    // 生成参考信号
     m_referenceSignal = m_signalProcessor->generateLFMWaveform(
         m_radarParams.pulseWidth,
         m_radarParams.bandwidth,
@@ -79,30 +67,22 @@ bool PhasedArrayRadarSimulator::initialize(const SimulationConfig& config,
     m_spectrumParams.centerFreq = clutterParams.spectrum.centerFreq;
     m_spectrumParams.bandwidth = clutterParams.spectrum.bandwidth;
 
-    // 初始化功能模块
     m_targetManager = std::make_unique<TargetManager>();
     m_clutterManager = std::make_unique<ClutterManager>();
     m_gridManager = std::make_unique<GridManager>();
     m_signalProcessor = std::make_unique<SignalProcessor>();
     m_beamCodeManager = std::make_unique<BeamCodeManager>();
 
-    // 初始化信号处理器
     m_signalProcessor->initialize(m_radarParams, m_antennaParams);
-
-    // 初始化网格管理器
     m_gridManager->initialize(m_radarParams, m_antennaParams);
-
-    // 初始化杂波管理器
     m_clutterManager->initialize(m_clutterParams, m_spectrumParams,
                                   m_config.clutterPoolSize,
                                   m_radarParams.numRangeBins);
 
-    // 加载波位码
     if (!m_config.beamCodeFile.empty()) {
         loadBeamCodes(m_config.beamCodeFile);
     }
 
-    // 生成参考信号
     m_referenceSignal = m_signalProcessor->generateLFMWaveform(
         m_radarParams.pulseWidth,
         m_radarParams.bandwidth,
@@ -172,19 +152,15 @@ ScanData PhasedArrayRadarSimulator::runSingleScan() {
         return scanData;
     }
 
-    // 对每个波束位置执行扫描
     BeamPosition beamPos = m_beamCodeManager->nextBeam();
     scanData.azimuth = beamPos.azimuth;
     scanData.elevation = beamPos.elevation;
 
-    // 生成该波束的网格
     m_currentGrid = m_gridManager->generateGridForBeam(
         beamPos, m_radarParams.numRangeBins, 1, 1);
 
-    // 生成 CPI 数据
     CPIData cpiData = runSingleCPI(m_beamCodeManager->getCurrentBeamIndex() - 1);
 
-    // 将 CPI 数据转换为扫描数据
     scanData.pulseData = std::move(cpiData.echoMatrix);
     scanData.beamIndex = cpiData.beamIndex;
 
@@ -202,30 +178,24 @@ CPIData PhasedArrayRadarSimulator::runSingleCPI(int beamIndex) {
     cpiData.startTime = m_currentTime;
     cpiData.beamPos = m_beamCodeManager->getBeamAt(beamIndex);
 
-    // 初始化回波矩阵
     cpiData.echoMatrix.resize(m_radarParams.numRangeBins);
     for (int r = 0; r < m_radarParams.numRangeBins; ++r) {
         cpiData.echoMatrix[r].resize(m_radarParams.numPulsesPerCPI, Complex(0, 0));
     }
 
-    // 为每个脉冲生成回波
     bool cpiStart = true;
 
     for (int pulseIdx = 0; pulseIdx < m_radarParams.numPulsesPerCPI; ++pulseIdx) {
         ComplexVector pulseEcho(m_radarParams.numRangeBins, Complex(0, 0));
 
-        // 1. 生成杂波回波（网格累加）
         if (m_config.generateClutter) {
             for (const auto& cell : m_currentGrid) {
-                // 获取调制后的杂波序列
                 ComplexVector clutterSeq = m_clutterManager->getModulatedClutter(
                     cell, pulseIdx);
 
-                // 累加到对应的距离门
                 if (!clutterSeq.empty()) {
                     size_t rangeIdx = cell.rangeIndex;
                     if (rangeIdx < pulseEcho.size()) {
-                        // 对杂波序列求平均作为该距离门的值
                         Complex avgClutter(0, 0);
                         for (const auto& sample : clutterSeq) {
                             avgClutter += sample;
@@ -237,25 +207,20 @@ CPIData PhasedArrayRadarSimulator::runSingleCPI(int beamIndex) {
             }
         }
 
-        // 2. 生成目标回波
         if (m_config.generateTargets && m_targetManager) {
             auto targets = m_targetManager->getAllTargets();
             for (auto& target : targets) {
-                // 更新目标 RCS
                 m_targetManager->updateTargetRCS(target, cpiStart);
 
-                // 生成目标回波
                 ComplexVector targetEcho = m_signalProcessor->generateTargetEcho(
                     target, pulseIdx, m_currentTime);
 
-                // 累加到脉冲回波
                 for (size_t i = 0; i < targetEcho.size() && i < pulseEcho.size(); ++i) {
                     pulseEcho[i] += targetEcho[i];
                 }
             }
         }
 
-        // 3. 添加噪声
         if (m_config.addNoise) {
             SignalType noisePower = m_signalProcessor->calculateNoisePower(
                 m_radarParams.bandwidth, m_radarParams.noiseFigure);
@@ -267,21 +232,18 @@ CPIData PhasedArrayRadarSimulator::runSingleCPI(int beamIndex) {
             }
         }
 
-        // 存储脉冲数据
         for (int r = 0; r < m_radarParams.numRangeBins; ++r) {
             cpiData.echoMatrix[r][pulseIdx] = pulseEcho[r];
         }
 
-        // 更新时间
         m_currentTime += m_radarParams.pri;
         m_currentPulse++;
 
-        cpiStart = false;  // 只有第一个脉冲是 CPI 开始
+        cpiStart = false;
     }
 
     m_currentCPI++;
 
-    // 更新目标位置
     if (m_targetManager) {
         m_targetManager->updateAllTargets(m_radarParams.cpiDuration, m_currentTime);
     }
@@ -312,7 +274,6 @@ void PhasedArrayRadarSimulator::runFullSimulation() {
         int numBeams = static_cast<int>(m_beamCodeManager->getBeamCount());
         int numScansPerSweep = numBeams;
 
-        // 计算总扫描次数
         SignalType sweepTime = numScansPerSweep * m_radarParams.cpiDuration;
         int totalSweeps = static_cast<int>(m_config.duration / sweepTime);
 
@@ -335,7 +296,6 @@ void PhasedArrayRadarSimulator::runFullSimulation() {
 
 void PhasedArrayRadarSimulator::updateSimulationState(SignalType dt) {
     (void)dt;
-    // 更新仿真状态（可用于实时更新目标位置等）
 }
 
 void PhasedArrayRadarSimulator::accumulateCellContribution(
@@ -348,7 +308,6 @@ void PhasedArrayRadarSimulator::accumulateCellContribution(
     size_t rangeIdx = cell.rangeIndex;
     if (rangeIdx >= rangeProfile.size()) return;
 
-    // 计算单元贡献（平均）
     Complex contribution(0, 0);
     for (const auto& sample : clutterSeq) {
         contribution += sample;
@@ -403,21 +362,18 @@ void PhasedArrayRadarSimulator::saveCPIData(const CPIData& data,
         return;
     }
 
-    // 写入文件头
     int32_t header[5] = {
         static_cast<int32_t>(data.cpiIndex),
         static_cast<int32_t>(data.numPulses),
         static_cast<int32_t>(data.numRangeBins),
-        sizeof(Complex),
+        static_cast<int32_t>(sizeof(Complex)),
         static_cast<int32_t>(data.beamPos.beamCode)
     };
     file.write(reinterpret_cast<char*>(header), sizeof(header));
 
-    // 写入波束信息
     file.write(reinterpret_cast<const char*>(&data.beamPos.azimuth), sizeof(SignalType));
     file.write(reinterpret_cast<const char*>(&data.beamPos.elevation), sizeof(SignalType));
 
-    // 写入回波数据
     for (const auto& pulse : data.echoMatrix) {
         file.write(reinterpret_cast<const char*>(pulse.data()),
                    pulse.size() * sizeof(Complex));

@@ -9,7 +9,10 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # 编译选项
 if(MSVC)
-    add_compile_options(/W4 /O2)
+    add_compile_options(/W4)
+    # Debug 模式使用 /Od 禁用优化，Release 模式使用 /O2
+    add_compile_options($<$<CONFIG:Debug>:/Od>)
+    add_compile_options($<$<CONFIG:Release>:/O2>)
 else()
     add_compile_options(-Wall -Wextra -O2)
 endif()

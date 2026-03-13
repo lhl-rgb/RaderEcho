@@ -5,6 +5,8 @@
 #include <string>
 #include <memory>
 #include <array>
+#include <cmath>
+#include <random>
 
 // ============================================================================
 // 基本类型定义
@@ -16,17 +18,17 @@ using SignalType = float;
 using Complex = std::complex<SignalType>;
 using ComplexVector = std::vector<Complex>;
 using ComplexMatrix = std::vector<ComplexVector>;
-static constexpr SignalType C_LIGHT = 3e8;
-static constexpr SignalType PI = 3.14159265358979323846;
-static constexpr SignalType K_BOLTZMANN = 1.38e-23;
-static constexpr SignalType T0 = 290.0;
+static constexpr SignalType C_LIGHT = 3e8f;
+static constexpr SignalType PI_VAL = 3.14159265358979323846f;
+static constexpr SignalType K_BOLTZMANN = 1.38e-23f;
+static constexpr SignalType T0 = 290.0f;
 #else
 using SignalType = double;
 using Complex = std::complex<SignalType>;
 using ComplexVector = std::vector<Complex>;
 using ComplexMatrix = std::vector<ComplexVector>;
 static constexpr SignalType C_LIGHT = 3e8;
-static constexpr SignalType PI = 3.14159265358979323846;
+static constexpr SignalType PI_VAL = 3.14159265358979323846;
 static constexpr SignalType K_BOLTZMANN = 1.38e-23;
 static constexpr SignalType T0 = 290.0;
 #endif
@@ -95,22 +97,21 @@ struct Acceleration3D {
 // ============================================================================
 
 struct ClutterCell {
-    size_t rangeIndex = 0;       // 距离索引
-    size_t azimuthIndex = 0;     // 方位索引
-    size_t elevationIndex = 0;   // 俯仰索引
+    size_t rangeIndex = 0;
+    size_t azimuthIndex = 0;
+    size_t elevationIndex = 0;
 
-    SignalType range = 0;        // 斜距 (m)
-    SignalType azimuth = 0;      // 方位角 (rad)
-    SignalType elevation = 0;    // 俯仰角 (rad)
+    SignalType range = 0;
+    SignalType azimuth = 0;
+    SignalType elevation = 0;
 
-    SignalType rangeSpan = 0;    // 距离跨度 (m)
-    SignalType azimuthSpan = 0;  // 方位跨度 (rad)
-    SignalType elevationSpan = 0;// 俯仰跨度 (rad)
+    SignalType rangeSpan = 0;
+    SignalType azimuthSpan = 0;
+    SignalType elevationSpan = 0;
 
-    SignalType antennaGain = 0;  // 天线增益（线性值）
-    SignalType clutterPower = 0; // 杂波功率
+    SignalType antennaGain = 0;
+    SignalType clutterPower = 0;
 
-    // 杂波序列索引（用于从内存池中获取）
     size_t sequenceIndex = 0;
 };
 
@@ -119,9 +120,9 @@ struct ClutterCell {
 // ============================================================================
 
 struct BeamPosition {
-    SignalType azimuth = 0;      // 方位指向 (deg)
-    SignalType elevation = 0;    // 俯仰指向 (deg)
-    int beamCode = 0;            // 波位码
+    SignalType azimuth = 0;
+    SignalType elevation = 0;
+    int beamCode = 0;
 
     BeamPosition() = default;
     BeamPosition(SignalType az, SignalType el, int code)
@@ -133,9 +134,9 @@ struct BeamPosition {
 // ============================================================================
 
 enum class WaveformType {
-    LFM = 0,      // 线性调频
-    NLFM = 1,     // 非线性调频
-    PhaseCoded = 2// 相位编码
+    LFM = 0,
+    NLFM = 1,
+    PhaseCoded = 2
 };
 
 enum class ModulationType {
@@ -148,9 +149,9 @@ struct WaveformParams {
     WaveformType type = WaveformType::LFM;
     ModulationType modulation = ModulationType::UpChirp;
 
-    SignalType bandwidth = 0;    // 带宽 (Hz)
-    SignalType pulseWidth = 0;   // 脉宽 (s)
-    SignalType sampleInterval = 0;          // 采样间隔 (s)
+    SignalType bandwidth = 0;
+    SignalType pulseWidth = 0;
+    SignalType sampleInterval = 0;
 
     SignalType chirpRate() const {
         return bandwidth / pulseWidth;
@@ -166,43 +167,37 @@ struct WaveformParams {
 // ============================================================================
 
 struct AntennaParams {
-    // 基本参数
-    SignalType gain_dB = 0;          // 天线增益 (dB)
-    SignalType height = 0;           // 天线高度 (m)
-    SignalType azBeamwidth_deg = 0;  // 水平波束宽度 (deg)
-    SignalType elBeamwidth_deg = 0;  // 俯仰波束宽度 (deg)
+    SignalType gain_dB = 0;
+    SignalType height = 0;
+    SignalType azBeamwidth_deg = 0;
+    SignalType elBeamwidth_deg = 0;
 
-    // 相控阵参数
-    int numElementsAz = 1;           // 方位阵元数
-    int numElementsEl = 1;           // 俯仰阵元数
-    SignalType elementSpacing = 0;   // 阵元间距 (m)
+    int numElementsAz = 1;
+    int numElementsEl = 1;
+    SignalType elementSpacing = 0;
 
-    // 扫描参数
-    SignalType scanRate = 0;         // 扫描速率 (deg/s)
-    std::string polarization = "HH"; // 极化方式
+    SignalType scanRate = 0;
+    std::string polarization = "HH";
 
-    // 计算参数
-    SignalType gain_linear = 1;      // 线性增益
-    SignalType azBeamwidth_rad = 0;  // 水平波束宽度 (rad)
-    SignalType elBeamwidth_rad = 0;  // 俯仰波束宽度 (rad)
-    SignalType wavelength = 0;       // 波长 (m)
+    SignalType gain_linear = 1;
+    SignalType azBeamwidth_rad = 0;
+    SignalType elBeamwidth_rad = 0;
+    SignalType wavelength = 0;
 
     void updateDerivedParams(SignalType frequency) {
         gain_linear = std::pow(10.0, gain_dB / 10.0);
-        azBeamwidth_rad = azBeamwidth_deg * PI / 180.0;
-        elBeamwidth_rad = elBeamwidth_deg * PI / 180.0;
+        azBeamwidth_rad = azBeamwidth_deg * PI_VAL / 180.0;
+        elBeamwidth_rad = elBeamwidth_deg * PI_VAL / 180.0;
         wavelength = C_LIGHT / frequency;
         if (elementSpacing == 0) {
             elementSpacing = wavelength / 2.0;
         }
     }
 
-    // 计算阵列方向图增益
     SignalType calculateArrayGain(SignalType azAngle, SignalType elAngle,
                                    SignalType azSteer, SignalType elSteer) const {
-        SignalType k = 2 * PI / wavelength;
+        SignalType k = 2 * PI_VAL / wavelength;
 
-        // 方位方向图
         SignalType azGain = 1;
         if (numElementsAz > 1) {
             SignalType sinAz = std::sin(azAngle) - std::sin(azSteer);
@@ -214,7 +209,6 @@ struct AntennaParams {
             azGain = std::pow(azGain, 2);
         }
 
-        // 俯仰方向图
         SignalType elGain = 1;
         if (numElementsEl > 1) {
             SignalType sinEl = std::sin(elAngle) - std::sin(elSteer);
@@ -235,32 +229,27 @@ struct AntennaParams {
 // ============================================================================
 
 struct RadarSystemParams {
-    // 基本参数
-    SignalType frequency = 0;        // 载频 (Hz)
-    SignalType bandwidth = 0;        // 信号带宽 (Hz)
-    SignalType prf = 0;              // 脉冲重复频率 (Hz)
-    SignalType pulseWidth = 0;       // 脉宽 (s)
-    SignalType sampleRate = 0;       // 采样率 (Hz)
-    SignalType peakPower = 0;        // 峰值功率 (W)
+    SignalType frequency = 0;
+    SignalType bandwidth = 0;
+    SignalType prf = 0;
+    SignalType pulseWidth = 0;
+    SignalType sampleRate = 0;
+    SignalType peakPower = 0;
 
-    // 系统参数
-    SignalType noiseFigure = 0;      // 噪声系数 (dB)
-    SignalType loss = 0;             // 系统损耗 (dB)
+    SignalType noiseFigure = 0;
+    SignalType loss = 0;
 
-    // 观测参数
-    SignalType maxRange = 0;         // 最大观测距离 (m)
-    SignalType minRange = 0;         // 最小观测距离 (m)
+    SignalType maxRange = 0;
+    SignalType minRange = 0;
 
-    // CPI 参数
-    int numPulsesPerCPI = 0;         // 每个 CPI 的脉冲数
-    SignalType cpiDuration = 0;      // CPI 持续时间 (s)
+    int numPulsesPerCPI = 0;
+    SignalType cpiDuration = 0;
 
-    // 推导参数
-    SignalType wavelength = 0;       // 波长 (m)
-    SignalType pri = 0;              // 脉冲重复间隔 (s)
-    SignalType rangeResolution = 0;  // 距离分辨率 (m)
-    int numRangeBins = 0;            // 距离门数量
-    SignalType rangeBinSize = 0;     // 距离门大小 (m)
+    SignalType wavelength = 0;
+    SignalType pri = 0;
+    SignalType rangeResolution = 0;
+    int numRangeBins = 0;
+    SignalType rangeBinSize = 0;
 
     void updateDerivedParams() {
         wavelength = C_LIGHT / frequency;
@@ -285,16 +274,16 @@ enum class ClutterDistributionType {
 };
 
 struct SpectrumParams {
-    SignalType centerFreq = 0;       // 杂波谱中心频率 (Hz)
-    SignalType bandwidth = 0;        // 杂波谱带宽 (Hz)
-    SignalType shape = 0;            // 谱形状参数
+    SignalType centerFreq = 0;
+    SignalType bandwidth = 0;
+    SignalType shape = 0;
 };
 
 struct ClutterCellParams {
-    SignalType sigma0 = 0;           // 后向散射系数
-    SignalType grazingAngle = 0;     // 掠射角 (rad)
-    SignalType rmsHeight = 0;        // 海面 RMS 高度 (m)
-    SignalType windSpeed = 0;        // 风速 (m/s)
+    SignalType sigma0 = 0;
+    SignalType grazingAngle = 0;
+    SignalType rmsHeight = 0;
+    SignalType windSpeed = 0;
 };
 
 struct ClutterParams {
@@ -302,12 +291,11 @@ struct ClutterParams {
     SpectrumParams spectrum;
     ClutterCellParams cellParams;
 
-    // 分布参数
-    SignalType weibullScale = 1;     // Weibull 尺度参数
-    SignalType weibullShape = 1;     // Weibull 形状参数
-    SignalType logNormalMean = 0;    // LogNormal 均值
-    SignalType logNormalStd = 1;     // LogNormal 标准差
-    SignalType kDistShape = 1;       // K 分布形状参数
+    SignalType weibullScale = 1;
+    SignalType weibullShape = 1;
+    SignalType logNormalMean = 0;
+    SignalType logNormalStd = 1;
+    SignalType kDistShape = 1;
 };
 
 // ============================================================================
@@ -315,20 +303,20 @@ struct ClutterParams {
 // ============================================================================
 
 enum class SwerlingModel {
-    Swerling0 = 0,   // 非起伏
-    Swerling1 = 1,   // 慢起伏 Rayleigh
-    Swerling2 = 2,   // 快起伏 Rayleigh
-    Swerling3 = 3,   // 慢起伏 Chi-square
-    Swerling4 = 4    // 快起伏 Chi-square
+    Swerling0 = 0,
+    Swerling1 = 1,
+    Swerling2 = 2,
+    Swerling3 = 3,
+    Swerling4 = 4
 };
 
 enum class MotionModel {
-    Stationary = 0,  // 静止
-    ConstantVelocity = 1,  // 匀速
-    ConstantAcceleration = 2,  // 匀加速
-    VariableAcceleration = 3,  // 变加速
-    Circular = 4,    // 圆周运动
-    SineWave = 5     // 正弦机动
+    Stationary = 0,
+    ConstantVelocity = 1,
+    ConstantAcceleration = 2,
+    VariableAcceleration = 3,
+    Circular = 4,
+    SineWave = 5
 };
 
 struct TargetParams {
@@ -340,16 +328,14 @@ struct TargetParams {
     MotionModel motionModel = MotionModel::ConstantVelocity;
     SwerlingModel swerlingModel = SwerlingModel::Swerling1;
 
-    SignalType rcs_mean = 1;       // 平均 RCS (m^2)
-    SignalType currentRCS = 1;     // 当前 RCS
+    SignalType rcs_mean = 1;
+    SignalType currentRCS = 1;
 
-    // 圆周运动参数
-    SignalType turnRate = 0;       // 转弯速率 (rad/s)
-    SignalType turnRadius = 0;     // 转弯半径 (m)
+    SignalType turnRate = 0;
+    SignalType turnRadius = 0;
 
-    // 正弦机动参数
-    SignalType sineAmplitude = 0;  // 正弦幅度
-    SignalType sineFrequency = 0;  // 正弦频率 (Hz)
+    SignalType sineAmplitude = 0;
+    SignalType sineFrequency = 0;
 };
 
 // ============================================================================
@@ -358,19 +344,19 @@ struct TargetParams {
 
 struct SimulationConfig {
     std::string name = "Simulation";
-    SignalType duration = 0;       // 仿真时长 (s)
-    SignalType startTime = 0;      // 开始时间 (s)
+    SignalType duration = 0;
+    SignalType startTime = 0;
 
     bool generateClutter = true;
     bool generateTargets = true;
     bool addNoise = true;
 
-    std::string beamCodeFile = ""; // 波位码文件路径
-    std::string outputFile = "";   // 输出文件路径
-    std::string clutterDataFile = "";// 杂波数据文件路径
+    std::string beamCodeFile = "";
+    std::string outputFile = "";
+    std::string clutterDataFile = "";
 
-    size_t clutterPoolSize = 100;  // 杂波池大小
-    size_t clutterSequenceLength = 0; // 杂波序列长度
+    size_t clutterPoolSize = 100;
+    size_t clutterSequenceLength = 0;
 };
 
 // ============================================================================
@@ -378,11 +364,11 @@ struct SimulationConfig {
 // ============================================================================
 
 inline SignalType deg2rad(SignalType deg) {
-    return deg * PI / 180.0;
+    return deg * PI_VAL / 180.0;
 }
 
 inline SignalType rad2deg(SignalType rad) {
-    return rad * 180.0 / PI;
+    return rad * 180.0 / PI_VAL;
 }
 
 inline SignalType dB2linear(SignalType dB) {

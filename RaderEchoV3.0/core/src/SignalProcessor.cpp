@@ -3,15 +3,10 @@
 #include <cmath>
 #include <random>
 #include <algorithm>
-#include <numeric>
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
 #endif
-
-// ============================================================================
-// Signal Processor Implementation
-// ============================================================================
 
 SignalProcessor::SignalProcessor() = default;
 
@@ -22,7 +17,6 @@ void SignalProcessor::initialize(const RadarSystemParams& radarParams,
     m_radarParams = radarParams;
     m_antennaParams = antennaParams;
 
-    // 生成参考信号（用于脉压）
     m_referenceSignal = generateLFMWaveform(radarParams.pulseWidth,
                                              radarParams.bandwidth,
                                              radarParams.sampleRate);
@@ -35,8 +29,6 @@ SignalType SignalProcessor::calculateAntennaGain(SignalType azAngle, SignalType 
                                                   SignalType azSteer, SignalType elSteer) {
     SignalType azGain = calculateAzimuthGain(azAngle, azSteer);
     SignalType elGain = calculateElevationGain(elAngle, elSteer);
-
-    // 双程增益（发射×接收）
     SignalType oneWayGain = azGain * elGain;
     return oneWayGain * oneWayGain;
 }
@@ -54,7 +46,7 @@ SignalType SignalProcessor::calculateAzimuthGain(SignalType azAngle, SignalType 
     }
 
     SignalType gain = std::abs(std::sin(N * psi / 2) / (N * std::sin(psi / 2)));
-    return gain * gain;  // 功率增益
+    return gain * gain;
 }
 
 SignalType SignalProcessor::calculateElevationGain(SignalType elAngle, SignalType elSteer) {
@@ -70,12 +62,11 @@ SignalType SignalProcessor::calculateElevationGain(SignalType elAngle, SignalTyp
     }
 
     SignalType gain = std::abs(std::sin(N * psi / 2) / (N * std::sin(psi / 2)));
-    return gain * gain;  // 功率增益
+    return gain * gain;
 }
 
 SignalType SignalProcessor::calculateTargetPower(SignalType range, SignalType rcs,
                                                   SignalType gain) {
-    // 雷达方程：Pr = (Pt * G^2 * lambda^2 * sigma) / ((4*PI)^3 * R^4)
     SignalType Pt = m_radarParams.peakPower;
     SignalType lambda = m_radarParams.wavelength;
     SignalType L = std::pow(10.0, m_radarParams.loss / 10.0);
@@ -91,43 +82,35 @@ ComplexVector SignalProcessor::generateTargetEcho(const TargetParams& target,
                                                    SignalType currentTime) {
     ComplexVector echo(m_radarParams.numRangeBins, Complex(0, 0));
 
-    // 计算目标当前距离
     SignalType range = target.position.range();
     if (range < m_radarParams.minRange || range > m_radarParams.maxRange) {
         return echo;
     }
 
-    // 计算目标所在的距离门
     int rangeBin = static_cast<int>((range - m_radarParams.minRange) / m_radarParams.rangeBinSize);
     if (rangeBin < 0 || rangeBin >= m_radarParams.numRangeBins) {
         return echo;
     }
 
-    // 计算回波功率
     SignalType azAngle = target.position.azimuth();
     SignalType elAngle = target.position.elevation();
 
-    // 获取当前波束指向（这里假设指向 0，实际应从模拟器传入）
     SignalType azSteer = 0;
     SignalType elSteer = 0;
 
     SignalType gain = calculateAntennaGain(azAngle, elAngle, azSteer, elSteer);
     SignalType power = calculateTargetPower(range, target.currentRCS, gain);
 
-    // 计算时延和相位
     SignalType delay = 2 * range / C_LIGHT;
     SignalType phase = -2 * M_PI * m_radarParams.frequency * delay;
 
-    // 计算多普勒频移
     SignalType radialVel = target.velocity.radialVelocity(target.position);
     SignalType dopplerFreq = 2 * radialVel / m_radarParams.wavelength;
     SignalType dopplerPhase = 2 * M_PI * dopplerFreq * pulseIndex / m_radarParams.prf;
 
-    // 生成目标信号
     SignalType amplitude = std::sqrt(power);
     SignalType totalPhase = phase + dopplerPhase;
 
-    // 在对应的距离门注入信号
     if (rangeBin >= 0 && rangeBin < m_radarParams.numRangeBins) {
         echo[rangeBin] = Complex(amplitude * std::cos(totalPhase),
                                  amplitude * std::sin(totalPhase));
@@ -161,13 +144,11 @@ ComplexVector SignalProcessor::matchedFilter(const ComplexVector& echo,
 
     ComplexVector output(outputLen, Complex(0, 0));
 
-    // 生成参考信号的共轭反转
     ComplexVector matchedRef(refLen);
     for (size_t i = 0; i < refLen; ++i) {
         matchedRef[i] = std::conj(reference[refLen - 1 - i]);
     }
 
-    // 卷积（匹配滤波）
     for (size_t n = 0; n < outputLen; ++n) {
         for (size_t k = 0; k < refLen; ++k) {
             if (n - k < echoLen) {
@@ -181,9 +162,7 @@ ComplexVector SignalProcessor::matchedFilter(const ComplexVector& echo,
 
 SignalType SignalProcessor::calculateSigma0(SignalType grazingAngle, SignalType windSpeed,
                                              SignalType frequency) {
-    // 简化的海杂波模型（X 波段）
-    // sigma0 = 0.001 * (grazing_angle)^1.5 * (wind_speed)^2
-
+    (void)frequency;
     SignalType K = 0.001;
     SignalType gamma = 1.5;
     SignalType delta = 2.0;
@@ -193,7 +172,6 @@ SignalType SignalProcessor::calculateSigma0(SignalType grazingAngle, SignalType 
 
 SignalType SignalProcessor::calculateClutterPower(const ClutterCell& cell,
                                                    const ClutterParams& clutterParams) {
-    // 杂波功率计算同 GridManager 中的实现
     SignalType Pt = m_radarParams.peakPower;
     SignalType G = cell.antennaGain;
     SignalType lambda = m_radarParams.wavelength;
@@ -228,9 +206,8 @@ ComplexVector SignalProcessor::generateThermalNoise(size_t length, SignalType no
 
 SignalType SignalProcessor::calculateNoisePower(SignalType bandwidth, SignalType noiseFigure,
                                                  SignalType temperature) {
-    // 热噪声功率：N = k * T * B * F
-    SignalType k = 1.38e-23;  // Boltzmann 常数
-    SignalType F = std::pow(10.0, noiseFigure / 10.0);  // 噪声系数转线性
+    SignalType k = 1.38e-23;
+    SignalType F = std::pow(10.0, noiseFigure / 10.0);
 
     return k * temperature * bandwidth * F;
 }
